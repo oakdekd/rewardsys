@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <?!= include('_shared') ?>
+</head>
+<body>
+  <h1>แต้มสะสมของฉัน</h1>
+  <div id="content">
+    <div class="card"><div class="small">กำลังโหลด...</div></div>
+  </div>
+
+  <script>
+    let me = null;
+
+    window.addEventListener('load', async () => {
+      try {
+        const profile = await initLiff();
+        if (!profile) return;
+        const data = await api('getMember', { lineUserId: profile.userId });
+        if (!data || !data.member) {
+          location.href = SCRIPT_URL + '?p=register';
+          return;
+        }
+        me = data.member;
+        render(data);
+      } catch (e) {
+        document.getElementById('content').innerHTML =
+          '<div class="card"><div class="err">' + e.message + '</div></div>';
+      }
+    });
+
+    function render(data) {
+      const m = data.member;
+      const txns = data.transactions || [];
+      const reds = data.redemptions || [];
+
+      const qrPayload = 'MEMBER:' + m.member_id + ':' + m.phone;
+      document.getElementById('content').innerHTML = `
+        <div class="card">
+          <div class="label">สวัสดี ${escapeHtml(m.name)}</div>
+          <div class="points">${m.points_balance} pt</div>
+          <div class="small">สะสมรวม ${m.lifetime_points} pt</div>
+        </div>
+
+        <div class="card">
+          <h2>QR สมาชิก (ให้พนักงานสแกน)</h2>
+          <canvas id="qr" style="display:block; margin:0 auto;"></canvas>
+          <div class="small" style="text-align:center; margin-top:8px;">${m.phone}</div>
+        </div>
+
+        <div class="card">
+          <button onclick="location.href=SCRIPT_URL+'?p=redeem'">🎁 แลกของรางวัล</button>
+        </div>
+
+        <div class="card">
+          <h2>ประวัติการเติม (ล่าสุด)</h2>
+          ${txns.length === 0 ? '<div class="small">ยังไม่มีรายการ</div>' :
+            txns.map(t => `
+              <div class="row" style="padding:8px 0; border-bottom:1px solid #f3f4f6;">
+                <div>
+                  <div class="value">${Number(t.amount_thb).toLocaleString()} ฿</div>
+                  <div class="small">${formatTime(t.timestamp)} • ${escapeHtml(t.fuel_type || '')}</div>
+                </div>
+                <div style="color:#16a34a; font-weight:600;">+${t.points_earned} pt</div>
+              </div>
+            `).join('')}
+        </div>
+
+        <div class="card">
+          <h2>ประวัติการแลก</h2>
+          ${reds.length === 0 ? '<div class="small">ยังไม่มีรายการ</div>' :
+            reds.map(r => `
+              <div class="row" style="padding:8px 0; border-bottom:1px solid #f3f4f6;">
+                <div>
+                  <div class="value">${escapeHtml(r.reward_name)}</div>
+                  <div class="small">${formatTime(r.timestamp)} • <span class="pill">${r.status}</span></div>
+                </div>
+                <div style="color:#dc2626; font-weight:600;">-${r.points_used} pt</div>
+              </div>
+            `).join('')}
+        </div>
+      `;
+      QRCode.toCanvas(document.getElementById('qr'), qrPayload, { width: 200, margin: 1 });
+    }
+
+    function escapeHtml(s) {
+      return String(s || '').replace(/[&<>"']/g, c => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+      }[c]));
+    }
+    function formatTime(ts) {
+      if (!ts) return '';
+      return String(ts).slice(0, 16);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <?!= include('_shared') ?>
+</head>
+<body>
+  <h1>สมัครสมาชิก</h1>
+  <div class="card">
+    <p class="small">สมัครครั้งเดียว สะสมแต้มได้ตลอด ใช้แลกส่วนลดน้ำมัน/ของรางวัล</p>
+    <label>ชื่อ-นามสกุล *</label>
+    <input id="name" placeholder="เช่น สมชาย ใจดี">
+
+    <label>เบอร์มือถือ *</label>
+    <input id="phone" type="tel" inputmode="numeric" placeholder="0812345678" maxlength="10">
+
+    <label>ทะเบียนรถ (ถ้ามี)</label>
+    <input id="plate" placeholder="เช่น 1กก 1234">
+
+    <label>ประเภทรถ</label>
+    <select id="vehicleType">
+      <option value="">- เลือก -</option>
+      <option>รถเก๋ง</option>
+      <option>รถกระบะ</option>
+      <option>SUV</option>
+      <option>รถบรรทุก</option>
+      <option>มอเตอร์ไซค์</option>
+      <option>อื่นๆ</option>
+    </select>
+
+    <label>วันเกิด (ดด/วว)</label>
+    <input id="birthday" placeholder="เช่น 15/03">
+
+    <div class="checkbox-row">
+      <input type="checkbox" id="consent">
+      <label for="consent" style="margin:0;">
+        ยินยอมรับโปรโมชั่นและข่าวสารผ่าน LINE
+        <span class="small">(ยกเลิกได้ทุกเมื่อ)</span>
+      </label>
+    </div>
+
+    <button id="submitBtn" onclick="submitForm()">สมัครสมาชิก</button>
+    <div id="msg"></div>
+  </div>
+
+  <script>
+    let lineUserId = '';
+    let displayName = '';
+
+    window.addEventListener('load', async () => {
+      try {
+        const profile = await initLiff();
+        if (!profile) return;
+        lineUserId = profile.userId;
+        displayName = profile.displayName;
+        document.getElementById('name').value = displayName;
+
+        const existing = await api('getMember', { lineUserId: lineUserId });
+        if (existing && existing.member) {
+          location.href = SCRIPT_URL + '?p=member';
+        }
+      } catch (e) {
+        showErr(e.message);
+      }
+    });
+
+    async function submitForm() {
+      const btn = document.getElementById('submitBtn');
+      btn.disabled = true;
+      try {
+        const payload = {
+          lineUserId: lineUserId,
+          name: document.getElementById('name').value.trim(),
+          phone: document.getElementById('phone').value.trim(),
+          plate: document.getElementById('plate').value.trim(),
+          vehicleType: document.getElementById('vehicleType').value,
+          birthday: document.getElementById('birthday').value.trim(),
+          consentMarketing: document.getElementById('consent').checked
+        };
+        await api('register', payload);
+        location.href = SCRIPT_URL + '?p=member';
+      } catch (e) {
+        showErr(e.message);
+        btn.disabled = false;
+      }
+    }
+
+    function showErr(text) {
+      document.getElementById('msg').innerHTML = '<div class="err">' + text + '</div>';
+    }
+  </script>
+</body>
+</html>

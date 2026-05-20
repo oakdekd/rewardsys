@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <?!= include('_shared') ?>
+</head>
+<body>
+  <h1>แลกของรางวัล</h1>
+  <div id="content">
+    <div class="card"><div class="small">กำลังโหลด...</div></div>
+  </div>
+
+  <script>
+    let me = null;
+    let rewards = [];
+
+    window.addEventListener('load', async () => {
+      try {
+        const profile = await initLiff();
+        if (!profile) return;
+        const data = await api('getMember', { lineUserId: profile.userId });
+        if (!data || !data.member) {
+          location.href = SCRIPT_URL + '?p=register';
+          return;
+        }
+        me = data.member;
+        rewards = await api('listRewards');
+        render();
+      } catch (e) {
+        document.getElementById('content').innerHTML =
+          '<div class="card"><div class="err">' + e.message + '</div></div>';
+      }
+    });
+
+    function render() {
+      const html = `
+        <div class="card">
+          <div class="label">แต้มของคุณ</div>
+          <div class="points">${me.points_balance} pt</div>
+        </div>
+        <div class="card">
+          <h2>เลือกของรางวัล</h2>
+          ${rewards.map(r => {
+            const canRedeem = me.points_balance >= Number(r.points_cost);
+            return `
+              <div class="reward">
+                <div>
+                  <div class="value">${escapeHtml(r.name)}</div>
+                  <div class="small">${escapeHtml(r.description || '')}</div>
+                  <div class="small">มูลค่า ${r.value_thb} ฿</div>
+                </div>
+                <div style="text-align:right;">
+                  <div class="value" style="color:${canRedeem ? '#16a34a' : '#9ca3af'};">
+                    ${r.points_cost} pt
+                  </div>
+                  <button style="width:auto; padding:6px 14px; margin-top:4px; font-size:13px;"
+                    onclick="confirmRedeem('${r.reward_id}', '${escapeHtml(r.name)}', ${r.points_cost})"
+                    ${canRedeem ? '' : 'disabled'}>
+                    แลก
+                  </button>
+                </div>
+              </div>`;
+          }).join('')}
+        </div>
+        <div class="card">
+          <button class="secondary" onclick="location.href=SCRIPT_URL+'?p=member'">← กลับ</button>
+        </div>
+      `;
+      document.getElementById('content').innerHTML = html;
+    }
+
+    async function confirmRedeem(rewardId, name, cost) {
+      if (!confirm(`ยืนยันแลก "${name}" ใช้ ${cost} pt?`)) return;
+      try {
+        const coupon = await api('redeem', { memberId: me.member_id, rewardId });
+        document.getElementById('content').innerHTML = `
+          <div class="card" style="text-align:center;">
+            <h2>🎉 แลกสำเร็จ</h2>
+            <div class="value">${escapeHtml(coupon.reward_name)}</div>
+            <div class="small" style="margin:12px 0;">แสดงรหัสนี้ให้พนักงาน</div>
+            <div class="coupon">${coupon.coupon_code}</div>
+            <div class="small" style="margin-top:12px;">รหัสนี้ใช้ได้ครั้งเดียว</div>
+            <button onclick="location.href=SCRIPT_URL+'?p=member'">กลับหน้าแรก</button>
+          </div>
+        `;
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    function escapeHtml(s) {
+      return String(s || '').replace(/[&<>"']/g, c => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+      }[c]));
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <?!= include('_shared') ?>
+</head>
+<body>
+  <h1>ตรวจสอบคูปอง (พนักงาน)</h1>
+  <div id="gate" class="card"><div class="small">กำลังตรวจสอบสิทธิ์...</div></div>
+  <div id="form" style="display:none;">
+    <div class="card">
+      <label>รหัสคูปอง</label>
+      <input id="code" placeholder="ABCD-1234" style="text-transform:uppercase; font-family:monospace; letter-spacing:2px;">
+      <button onclick="verifyCode()">ตรวจสอบและตัดใช้</button>
+      <div id="msg"></div>
+    </div>
+  </div>
+
+  <script>
+    let staffLineUserId = '';
+    window.addEventListener('load', async () => {
+      try {
+        const profile = await initLiff();
+        if (!profile) return;
+        staffLineUserId = profile.userId;
+        try {
+          await api('lookupMember', { staffLineUserId, phone: '0000000000' });
+        } catch (e) {
+          if (/สิทธิ์/.test(e.message)) {
+            document.getElementById('gate').innerHTML =
+              '<div class="err">บัญชี LINE ของคุณไม่อยู่ในรายชื่อพนักงาน</div>';
+            return;
+          }
+        }
+        document.getElementById('gate').style.display = 'none';
+        document.getElementById('form').style.display = 'block';
+      } catch (e) {
+        document.getElementById('gate').innerHTML = '<div class="err">' + e.message + '</div>';
+      }
+    });
+
+    async function verifyCode() {
+      const code = document.getElementById('code').value.trim().toUpperCase();
+      if (!code) return;
+      try {
+        const result = await api('verifyCoupon', { staffLineUserId, couponCode: code });
+        document.getElementById('msg').innerHTML =
+          `<div class="ok">✅ ${escapeHtml(result.reward_name)}<br>` +
+          `มูลค่า ${result.value_thb} บาท</div>`;
+        document.getElementById('code').value = '';
+      } catch (e) {
+        document.getElementById('msg').innerHTML = '<div class="err">❌ ' + e.message + '</div>';
+      }
+    }
+    function escapeHtml(s) {
+      return String(s || '').replace(/[&<>"']/g, c => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+      }[c]));
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <?!= include('_shared') ?>
+</head>
+<body>
+  <h1>บันทึกการเติมน้ำมัน</h1>
+  <div id="gate" class="card"><div class="small">กำลังตรวจสอบสิทธิ์...</div></div>
+  <div id="form" style="display:none;">
+    <div class="card">
+      <label>เบอร์มือถือลูกค้า *</label>
+      <input id="phone" type="tel" inputmode="numeric" maxlength="10" placeholder="08x-xxx-xxxx" oninput="onPhoneInput()">
+      <div id="memberInfo" class="small"></div>
+
+      <label>ยอดเงิน (บาท) *</label>
+      <input id="amount" type="number" inputmode="decimal" placeholder="เช่น 500">
+
+      <label>จำนวนลิตร</label>
+      <input id="liters" type="number" inputmode="decimal" step="0.01" placeholder="ไม่บังคับ">
+
+      <label>ชนิดน้ำมัน</label>
+      <select id="fuelType">
+        <option value="">- เลือก -</option>
+      </select>
+
+      <label>วิธีชำระเงิน *</label>
+      <select id="paymentMethod">
+        <option value="cash">เงินสด (+20% bonus)</option>
+        <option value="qr" selected>QR PromptPay (+30% bonus)</option>
+        <option value="credit">บัตรเครดิต</option>
+      </select>
+
+      <label>ทะเบียนรถ</label>
+      <input id="plate" placeholder="เช่น 1กก 1234">
+
+      <div id="preview" class="small" style="margin-top:12px;"></div>
+
+      <button id="submitBtn" onclick="submitTxn()">บันทึก & ให้แต้ม</button>
+      <div id="msg"></div>
+    </div>
+  </div>
+
+  <script>
+    let staffLineUserId = '';
+    let foundMember = null;
+    let fuelTypes = [];
+
+    window.addEventListener('load', async () => {
+      try {
+        const profile = await initLiff();
+        if (!profile) return;
+        staffLineUserId = profile.userId;
+
+        const test = await api('ping');
+        try {
+          await api('lookupMember', { staffLineUserId, phone: '0000000000' });
+        } catch (e) {
+          if (/สิทธิ์/.test(e.message)) {
+            document.getElementById('gate').innerHTML =
+              '<div class="err">บัญชี LINE ของคุณไม่อยู่ในรายชื่อพนักงาน</div>' +
+              '<div class="small">ติดต่อผู้ดูแลเพื่อเพิ่ม line_user_id ของคุณในชีต Staff</div>';
+            return;
+          }
+        }
+        document.getElementById('gate').style.display = 'none';
+        document.getElementById('form').style.display = 'block';
+
+        const ft = "<?= fuelTypes ?>";
+        fuelTypes = ft.split(',').map(s => s.trim()).filter(Boolean);
+        const sel = document.getElementById('fuelType');
+        fuelTypes.forEach(f => {
+          const o = document.createElement('option');
+          o.value = f; o.textContent = f;
+          sel.appendChild(o);
+        });
+
+        document.getElementById('amount').addEventListener('input', updatePreview);
+        document.getElementById('paymentMethod').addEventListener('change', updatePreview);
+      } catch (e) {
+        document.getElementById('gate').innerHTML = '<div class="err">' + e.message + '</div>';
+      }
+    });
+
+    let phoneTimer;
+    function onPhoneInput() {
+      clearTimeout(phoneTimer);
+      const phone = document.getElementById('phone').value.trim();
+      if (phone.length < 9) {
+        document.getElementById('memberInfo').innerHTML = '';
+        foundMember = null;
+        return;
+      }
+      phoneTimer = setTimeout(async () => {
+        try {
+          const m = await api('lookupMember', { staffLineUserId, phone });
+          if (m) {
+            foundMember = m;
+            document.getElementById('memberInfo').innerHTML =
+              '<div class="ok">พบสมาชิก: ' + escapeHtml(m.name) + ' (' + m.points_balance + ' pt)</div>';
+            if (m.plate) document.getElementById('plate').value = m.plate;
+          } else {
+            foundMember = null;
+            document.getElementById('memberInfo').innerHTML =
+              '<div class="err">ไม่พบสมาชิก - ลูกค้าต้องสมัครก่อน</div>';
+          }
+        } catch (e) {
+          document.getElementById('memberInfo').innerHTML = '<div class="err">' + e.message + '</div>';
+        }
+      }, 400);
+    }
+
+    function updatePreview() {
+      const amt = Number(document.getElementById('amount').value) || 0;
+      const pm = document.getElementById('paymentMethod').value;
+      const base = (amt / 45) * 10;
+      const mult = pm === 'cash' ? 1.2 : pm === 'qr' ? 1.3 : 1.0;
+      const pts = Math.floor(base * mult);
+      document.getElementById('preview').innerHTML =
+        amt > 0 ? `จะได้แต้ม: <b style="color:#16a34a;">+${pts} pt</b>` : '';
+    }
+
+    async function submitTxn() {
+      const btn = document.getElementById('submitBtn');
+      btn.disabled = true;
+      try {
+        if (!foundMember) throw new Error('กรุณาเลือกสมาชิกก่อน');
+        const payload = {
+          staffLineUserId,
+          memberId: foundMember.member_id,
+          amount: Number(document.getElementById('amount').value),
+          liters: Number(document.getElementById('liters').value) || null,
+          fuelType: document.getElementById('fuelType').value,
+          paymentMethod: document.getElementById('paymentMethod').value,
+          plate: document.getElementById('plate').value.trim()
+        };
+        if (!payload.amount || payload.amount <= 0) throw new Error('กรุณากรอกยอดเงิน');
+
+        const result = await api('recordTransaction', payload);
+        document.getElementById('msg').innerHTML =
+          `<div class="ok">✅ บันทึกแล้ว +${result.points} pt | คงเหลือ ${result.newBalance} pt</div>`;
+        setTimeout(() => location.reload(), 1500);
+      } catch (e) {
+        document.getElementById('msg').innerHTML = '<div class="err">' + e.message + '</div>';
+        btn.disabled = false;
+      }
+    }
+
+    function escapeHtml(s) {
+      return String(s || '').replace(/[&<>"']/g, c => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+      }[c]));
+    }
+  </script>
+</body>
+</html>
