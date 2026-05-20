@@ -35,6 +35,7 @@ function registerMember(input) {
     if (existingLine) return existingLine;
   }
 
+  const welcomeBonus = Number(getConfig('WELCOME_BONUS_POINTS')) || 50;
   const member = {
     member_id: generateId_('M'),
     line_user_id: input.lineUserId || '',
@@ -44,12 +45,13 @@ function registerMember(input) {
     plate: (input.plate || '').toUpperCase(),
     vehicle_type: input.vehicleType || '',
     consent_marketing: !!input.consentMarketing,
-    points_balance: 0,
-    lifetime_points: 0,
+    points_balance: welcomeBonus,
+    lifetime_points: welcomeBonus,
     created_at: now_(),
     last_active_at: now_()
   };
   appendRow_(SHEET_NAMES.MEMBERS, member);
+  notifyMemberWelcome_(member, welcomeBonus);
   return member;
 }
 
@@ -63,6 +65,34 @@ function updateMember(memberId, updates) {
   if (filtered.phone) filtered.phone = normalizePhone_(filtered.phone);
   filtered.last_active_at = now_();
   return updateRowByColumn_(SHEET_NAMES.MEMBERS, 'member_id', memberId, filtered);
+}
+
+function generateMemberQrPayload(memberId) {
+  const ts = Math.floor(Date.now() / 1000);
+  const sig = signQr_(memberId, ts);
+  return `MEMBER|${memberId}|${ts}|${sig}`;
+}
+
+function verifyMemberQrPayload(payload) {
+  if (!payload || typeof payload !== 'string') throw new Error('QR ไม่ถูกต้อง');
+  const parts = payload.split('|');
+  if (parts.length !== 4 || parts[0] !== 'MEMBER') throw new Error('QR ไม่ถูกต้อง');
+  const [, memberId, tsStr, sig] = parts;
+  const ts = Number(tsStr);
+  const expected = signQr_(memberId, ts);
+  if (expected !== sig) throw new Error('ลายเซ็น QR ไม่ตรง');
+  const ttl = Number(getConfig('QR_TTL_SECONDS')) || 300;
+  const age = Math.floor(Date.now() / 1000) - ts;
+  if (age > ttl) throw new Error('QR หมดอายุ กรุณาให้ลูกค้าเปิด QR ใหม่');
+  const found = findRowByColumn_(SHEET_NAMES.MEMBERS, 'member_id', memberId);
+  if (!found) throw new Error('ไม่พบสมาชิก');
+  return rowToObject_(found.headers, found.values);
+}
+
+function signQr_(memberId, ts) {
+  const secret = getScriptProp_('QR_HMAC_SECRET') || 'dev-secret-change-me';
+  const hmac = Utilities.computeHmacSha256Signature(memberId + '|' + ts, secret);
+  return Utilities.base64EncodeWebSafe(hmac).replace(/=+$/, '').slice(0, 10);
 }
 
 function addPointsToMember_(memberId, points) {

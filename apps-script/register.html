@@ -8,40 +8,22 @@
 <body>
   <h1>สมัครสมาชิก</h1>
   <div class="card">
-    <p class="small">สมัครครั้งเดียว สะสมแต้มได้ตลอด ใช้แลกส่วนลดน้ำมัน/ของรางวัล</p>
-    <label>ชื่อ-นามสกุล *</label>
-    <input id="name" placeholder="เช่น สมชาย ใจดี">
+    <p class="small">สมัครครั้งเดียว สะสมแต้มได้ตลอด รับฟรี <b style="color:#16a34a;">+50 pt</b> ทันทีที่สมัคร</p>
+
+    <label>ชื่อ *</label>
+    <input id="name" placeholder="ชื่อสำหรับติดต่อ">
 
     <label>เบอร์มือถือ *</label>
     <input id="phone" type="tel" inputmode="numeric" placeholder="0812345678" maxlength="10">
 
-    <label>ทะเบียนรถ (ถ้ามี)</label>
-    <input id="plate" placeholder="เช่น 1กก 1234">
-
-    <label>ประเภทรถ</label>
-    <select id="vehicleType">
-      <option value="">- เลือก -</option>
-      <option>รถเก๋ง</option>
-      <option>รถกระบะ</option>
-      <option>SUV</option>
-      <option>รถบรรทุก</option>
-      <option>มอเตอร์ไซค์</option>
-      <option>อื่นๆ</option>
-    </select>
-
-    <label>วันเกิด (ดด/วว)</label>
-    <input id="birthday" placeholder="เช่น 15/03">
-
-    <div class="checkbox-row">
-      <input type="checkbox" id="consent">
-      <label for="consent" style="margin:0;">
-        ยินยอมรับโปรโมชั่นและข่าวสารผ่าน LINE
-        <span class="small">(ยกเลิกได้ทุกเมื่อ)</span>
-      </label>
-    </div>
-
     <button id="submitBtn" onclick="submitForm()">สมัครสมาชิก</button>
     <div id="msg"></div>
+
+    <p class="small" style="margin-top:16px; line-height:1.5;">
+      การกดสมัครสมาชิกถือเป็นการยินยอมให้เราเก็บข้อมูลของท่าน
+      (ชื่อ เบอร์โทร ประวัติการเติมน้ำมัน) เพื่อให้บริการสะสมแต้ม
+      และส่งข่าวสาร/โปรโมชั่นผ่าน LINE สามารถยกเลิกได้ตลอดเวลา
+    </p>
   </div>
 
   <script>
@@ -73,10 +55,7 @@
           lineUserId: lineUserId,
           name: document.getElementById('name').value.trim(),
           phone: document.getElementById('phone').value.trim(),
-          plate: document.getElementById('plate').value.trim(),
-          vehicleType: document.getElementById('vehicleType').value,
-          birthday: document.getElementById('birthday').value.trim(),
-          consentMarketing: document.getElementById('consent').checked
+          consentMarketing: true
         };
         await api('register', payload);
         location.href = SCRIPT_URL + '?p=member';

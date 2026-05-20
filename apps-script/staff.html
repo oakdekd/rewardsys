@@ -8,35 +8,31 @@
 <body>
   <h1>บันทึกการเติมน้ำมัน</h1>
   <div id="gate" class="card"><div class="small">กำลังตรวจสอบสิทธิ์...</div></div>
+
   <div id="form" style="display:none;">
     <div class="card">
-      <label>เบอร์มือถือลูกค้า *</label>
-      <input id="phone" type="tel" inputmode="numeric" maxlength="10" placeholder="08x-xxx-xxxx" oninput="onPhoneInput()">
+      <h2>1. ระบุลูกค้า</h2>
+      <button onclick="scanQr()">📷 สแกน QR ลูกค้า</button>
+      <div style="text-align:center; color:#9ca3af; margin:12px 0;">— หรือ —</div>
+      <label>พิมพ์เบอร์มือถือ</label>
+      <input id="phone" type="tel" inputmode="numeric" maxlength="10"
+        placeholder="08x-xxx-xxxx" oninput="onPhoneInput()">
       <div id="memberInfo" class="small"></div>
+    </div>
 
+    <div class="card">
+      <h2>2. ยอดเงิน</h2>
       <label>ยอดเงิน (บาท) *</label>
-      <input id="amount" type="number" inputmode="decimal" placeholder="เช่น 500">
+      <input id="amount" type="number" inputmode="decimal" placeholder="เช่น 500" autocomplete="off">
 
-      <label>จำนวนลิตร</label>
-      <input id="liters" type="number" inputmode="decimal" step="0.01" placeholder="ไม่บังคับ">
-
-      <label>ชนิดน้ำมัน</label>
-      <select id="fuelType">
-        <option value="">- เลือก -</option>
-      </select>
-
-      <label>วิธีชำระเงิน *</label>
+      <label>วิธีชำระเงิน</label>
       <select id="paymentMethod">
         <option value="cash">เงินสด (+20% bonus)</option>
         <option value="qr" selected>QR PromptPay (+30% bonus)</option>
         <option value="credit">บัตรเครดิต</option>
       </select>
 
-      <label>ทะเบียนรถ</label>
-      <input id="plate" placeholder="เช่น 1กก 1234">
-
       <div id="preview" class="small" style="margin-top:12px;"></div>
-
       <button id="submitBtn" onclick="submitTxn()">บันทึก & ให้แต้ม</button>
       <div id="msg"></div>
     </div>
@@ -45,7 +41,6 @@
   <script>
     let staffLineUserId = '';
     let foundMember = null;
-    let fuelTypes = [];
 
     window.addEventListener('load', async () => {
       try {
@@ -53,28 +48,18 @@
         if (!profile) return;
         staffLineUserId = profile.userId;
 
-        const test = await api('ping');
         try {
           await api('lookupMember', { staffLineUserId, phone: '0000000000' });
         } catch (e) {
           if (/สิทธิ์/.test(e.message)) {
             document.getElementById('gate').innerHTML =
               '<div class="err">บัญชี LINE ของคุณไม่อยู่ในรายชื่อพนักงาน</div>' +
-              '<div class="small">ติดต่อผู้ดูแลเพื่อเพิ่ม line_user_id ของคุณในชีต Staff</div>';
+              '<div class="small" style="margin-top:8px;">ติดต่อผู้ดูแลให้เพิ่ม line_user_id ของคุณในชีต Staff</div>';
             return;
           }
         }
         document.getElementById('gate').style.display = 'none';
         document.getElementById('form').style.display = 'block';
-
-        const ft = "<?= fuelTypes ?>";
-        fuelTypes = ft.split(',').map(s => s.trim()).filter(Boolean);
-        const sel = document.getElementById('fuelType');
-        fuelTypes.forEach(f => {
-          const o = document.createElement('option');
-          o.value = f; o.textContent = f;
-          sel.appendChild(o);
-        });
 
         document.getElementById('amount').addEventListener('input', updatePreview);
         document.getElementById('paymentMethod').addEventListener('change', updatePreview);
@@ -82,6 +67,25 @@
         document.getElementById('gate').innerHTML = '<div class="err">' + e.message + '</div>';
       }
     });
+
+    async function scanQr() {
+      try {
+        if (!liff.scanCodeV2) {
+          alert('ฟังก์ชันสแกน QR ใช้ได้เฉพาะในแอป LINE เท่านั้น\nกรุณาเปิดลิงก์นี้ผ่าน Rich Menu ใน LINE');
+          return;
+        }
+        const result = await liff.scanCodeV2();
+        if (!result || !result.value) return;
+        const member = await api('scanMemberQr', {
+          staffLineUserId,
+          payload: result.value
+        });
+        setMember(member);
+      } catch (e) {
+        document.getElementById('memberInfo').innerHTML =
+          '<div class="err">' + (e.message || 'สแกนไม่สำเร็จ') + '</div>';
+      }
+    }
 
     let phoneTimer;
     function onPhoneInput() {
@@ -96,10 +100,7 @@
         try {
           const m = await api('lookupMember', { staffLineUserId, phone });
           if (m) {
-            foundMember = m;
-            document.getElementById('memberInfo').innerHTML =
-              '<div class="ok">พบสมาชิก: ' + escapeHtml(m.name) + ' (' + m.points_balance + ' pt)</div>';
-            if (m.plate) document.getElementById('plate').value = m.plate;
+            setMember(m);
           } else {
             foundMember = null;
             document.getElementById('memberInfo').innerHTML =
@@ -109,6 +110,13 @@
           document.getElementById('memberInfo').innerHTML = '<div class="err">' + e.message + '</div>';
         }
       }, 400);
+    }
+
+    function setMember(m) {
+      foundMember = m;
+      document.getElementById('phone').value = m.phone;
+      document.getElementById('memberInfo').innerHTML =
+        `<div class="ok">✅ ${escapeHtml(m.name)} | คงเหลือ ${m.points_balance} pt</div>`;
     }
 
     function updatePreview() {
@@ -125,19 +133,16 @@
       const btn = document.getElementById('submitBtn');
       btn.disabled = true;
       try {
-        if (!foundMember) throw new Error('กรุณาเลือกสมาชิกก่อน');
-        const payload = {
+        if (!foundMember) throw new Error('กรุณาสแกน QR หรือพิมพ์เบอร์ลูกค้าก่อน');
+        const amount = Number(document.getElementById('amount').value);
+        if (!amount || amount <= 0) throw new Error('กรุณากรอกยอดเงิน');
+
+        const result = await api('recordTransaction', {
           staffLineUserId,
           memberId: foundMember.member_id,
-          amount: Number(document.getElementById('amount').value),
-          liters: Number(document.getElementById('liters').value) || null,
-          fuelType: document.getElementById('fuelType').value,
-          paymentMethod: document.getElementById('paymentMethod').value,
-          plate: document.getElementById('plate').value.trim()
-        };
-        if (!payload.amount || payload.amount <= 0) throw new Error('กรุณากรอกยอดเงิน');
-
-        const result = await api('recordTransaction', payload);
+          amount: amount,
+          paymentMethod: document.getElementById('paymentMethod').value
+        });
         document.getElementById('msg').innerHTML =
           `<div class="ok">✅ บันทึกแล้ว +${result.points} pt | คงเหลือ ${result.newBalance} pt</div>`;
         setTimeout(() => location.reload(), 1500);

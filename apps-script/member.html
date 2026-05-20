@@ -32,12 +32,13 @@
       }
     });
 
+    let qrTimer = null;
+
     function render(data) {
       const m = data.member;
       const txns = data.transactions || [];
       const reds = data.redemptions || [];
 
-      const qrPayload = 'MEMBER:' + m.member_id + ':' + m.phone;
       document.getElementById('content').innerHTML = `
         <div class="card">
           <div class="label">สวัสดี ${escapeHtml(m.name)}</div>
@@ -48,7 +49,10 @@
         <div class="card">
           <h2>QR สมาชิก (ให้พนักงานสแกน)</h2>
           <canvas id="qr" style="display:block; margin:0 auto;"></canvas>
-          <div class="small" style="text-align:center; margin-top:8px;">${m.phone}</div>
+          <div class="small" style="text-align:center; margin-top:8px;">
+            <span id="qrTtl">QR จะรีเฟรชอัตโนมัติ</span>
+          </div>
+          <div class="small" style="text-align:center;">${m.phone}</div>
         </div>
 
         <div class="card">
@@ -83,7 +87,22 @@
             `).join('')}
         </div>
       `;
-      QRCode.toCanvas(document.getElementById('qr'), qrPayload, { width: 200, margin: 1 });
+      refreshQr();
+      if (qrTimer) clearInterval(qrTimer);
+      qrTimer = setInterval(refreshQr, 4 * 60 * 1000);
+    }
+
+    async function refreshQr() {
+      try {
+        const profile = await liff.getProfile();
+        const { payload, ttlSeconds } = await api('getMemberQr', { lineUserId: profile.userId });
+        const canvas = document.getElementById('qr');
+        if (canvas) QRCode.toCanvas(canvas, payload, { width: 220, margin: 1 });
+        const ttlEl = document.getElementById('qrTtl');
+        if (ttlEl) ttlEl.textContent = `QR ใช้ได้ ${Math.floor(ttlSeconds / 60)} นาที (รีเฟรชอัตโนมัติ)`;
+      } catch (e) {
+        console.error('refreshQr', e);
+      }
     }
 
     function escapeHtml(s) {

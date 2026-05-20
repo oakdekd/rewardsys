@@ -23,6 +23,12 @@ const DEFAULT_CONFIG = {
   // Points expire this many months after the latest transaction.
   POINT_EXPIRY_MONTHS: 24,
 
+  // Bonus given on first signup
+  WELCOME_BONUS_POINTS: 50,
+
+  // Dynamic QR validity window (seconds)
+  QR_TTL_SECONDS: 300,
+
   // LINE channel secret/token are stored in Script Properties, not here.
   // Set via: File > Project properties > Script properties
   // Keys: LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN, LIFF_ID

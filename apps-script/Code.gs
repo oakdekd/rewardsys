@@ -80,6 +80,19 @@ function routeApi_(body) {
     case 'lookupMember':
       if (!isStaff_(body.staffLineUserId)) throw new Error('ไม่มีสิทธิ์เข้าถึง');
       return findMemberByPhone(body.phone);
+    case 'getMemberQr':
+      if (!body.lineUserId) throw new Error('missing lineUserId');
+      {
+        const m = findMemberByLineUserId(body.lineUserId);
+        if (!m) throw new Error('ไม่พบสมาชิก');
+        return {
+          payload: generateMemberQrPayload(m.member_id),
+          ttlSeconds: Number(getConfig('QR_TTL_SECONDS')) || 300
+        };
+      }
+    case 'scanMemberQr':
+      if (!isStaff_(body.staffLineUserId)) throw new Error('ไม่มีสิทธิ์เข้าถึง');
+      return verifyMemberQrPayload(body.payload);
     case 'ping':
       return { time: now_() };
     default:

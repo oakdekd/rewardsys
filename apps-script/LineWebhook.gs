@@ -101,6 +101,17 @@ function notifyMemberPointsEarned_(member, txn, newBalance) {
     `ขอบคุณที่ใช้บริการครับ 🙏`);
 }
 
+function notifyMemberWelcome_(member, bonus) {
+  if (!member.line_user_id) return;
+  pushText_(member.line_user_id,
+    `🎉 ยินดีต้อนรับ ${member.name}\n` +
+    `สมัครสมาชิกสำเร็จ ได้รับโบนัสต้อนรับ +${bonus} pt\n\n` +
+    `วิธีสะสมแต้ม:\n` +
+    `1. กดเมนู "QR ของฉัน" ทุกครั้งที่เติมน้ำมัน\n` +
+    `2. ให้พนักงานสแกน → แต้มเข้าทันที\n\n` +
+    `ขอบคุณที่เป็นสมาชิกกับเราครับ 🙏`);
+}
+
 function notifyMemberRedemption_(member, coupon) {
   if (!member.line_user_id) return;
   pushText_(member.line_user_id,
